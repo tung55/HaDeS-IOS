@@ -1,9 +1,18 @@
 #include "gui.h"
 
-static uint32_t* fb_ptr = 0;
-static uint32_t fb_width = 0, fb_height = 0, fb_pitch = 0;
+// ==========================================
+// HÀM DEBUG: In chữ ra cổng COM1 để đọc log
+// ==========================================
+void serial_print(const char* str) {
+    while (*str) {
+        __asm__ volatile("outb %0, %1" : : "a"((uint8_t)*str), "Nd"((uint16_t)0x3F8));
+        str++;
+    }
+}
 
-// FULL FONT 8x8 CƠ BẢN (Đã fix đầy đủ chữ, số, ký tự)
+// ==========================================
+// BỘ FONT CHỮ 8x8
+// ==========================================
 static const uint8_t font8x8_basic[128][8] = {
     [' ']={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, ['!']={0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00},
     ['/']={0x00,0x02,0x04,0x08,0x10,0x20,0x40,0x00}, ['0']={0x3C,0x42,0x42,0x42,0x42,0x42,0x3C,0x00},
@@ -29,7 +38,7 @@ static const uint8_t font8x8_basic[128][8] = {
     ['d']={0x02,0x02,0x3A,0x46,0x42,0x46,0x3A,0x00}, ['e']={0x00,0x00,0x3C,0x42,0x7E,0x40,0x3C,0x00},
     ['f']={0x0C,0x12,0x10,0x7C,0x10,0x10,0x10,0x00}, ['g']={0x00,0x00,0x3E,0x42,0x42,0x3E,0x02,0x3C},
     ['h']={0x40,0x40,0x5C,0x62,0x42,0x42,0x42,0x00}, ['i']={0x08,0x00,0x18,0x08,0x08,0x08,0x1C,0x00},
-    ['j']={0x02,0x00,0x06,0x02,0x02,0x42,0x3C,0x00}, ['k']={0x40,0x40,0x44,0x48,0x70,0x48,0x44,0x00},
+    ['j']={0x02,0x00,0x06,0x02,0x02,0x42,0x3C,0x00}, ['k']={0x44,0x48,0x50,0x60,0x50,0x48,0x44,0x00},
     ['l']={0x18,0x08,0x08,0x08,0x08,0x08,0x1C,0x00}, ['m']={0x00,0x00,0x76,0x4A,0x4A,0x4A,0x4A,0x00},
     ['n']={0x00,0x00,0x5C,0x62,0x42,0x42,0x42,0x00}, ['o']={0x00,0x00,0x3C,0x42,0x42,0x42,0x3C,0x00},
     ['p']={0x00,0x00,0x5C,0x62,0x42,0x62,0x5C,0x40}, ['q']={0x00,0x00,0x3A,0x46,0x42,0x46,0x3A,0x02},
@@ -38,85 +47,97 @@ static const uint8_t font8x8_basic[128][8] = {
     ['v']={0x00,0x00,0x42,0x42,0x42,0x24,0x18,0x00}, ['w']={0x00,0x00,0x42,0x42,0x5A,0x5A,0x24,0x00},
     ['x']={0x00,0x00,0x42,0x24,0x18,0x24,0x42,0x00}, ['y']={0x00,0x00,0x42,0x42,0x42,0x3E,0x02,0x3C},
     ['z']={0x00,0x00,0x7E,0x04,0x18,0x20,0x7E,0x00}, ['.']={0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x00},
-    ['-']={0x00,0x00,0x00,0x3C,0x00,0x00,0x00,0x00}, [':']={0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x00},
-    [',']={0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x30}, ['%']={0x62,0x66,0x0C,0x18,0x30,0x66,0x46,0x00},
-    ['(']={0x0C,0x18,0x30,0x30,0x30,0x18,0x0C,0x00}, [')']={0x30,0x18,0x0C,0x0C,0x0C,0x18,0x30,0x00},
-    ['_']={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF}, ['?']={0x3C,0x66,0x06,0x0C,0x18,0x00,0x18,0x00},
-    ['+']={0x00,0x18,0x18,0x7E,0x18,0x18,0x00,0x00}, ['=']={0x00,0x00,0x7E,0x00,0x7E,0x00,0x00,0x00},
-    ['*']={0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00}, ['<']={0x0C,0x18,0x30,0x60,0x30,0x18,0x0C,0x00},
-    ['>']={0x30,0x18,0x0C,0x06,0x0C,0x18,0x30,0x00}
+    ['-']={0x00,0x00,0x00,0x3C,0x00,0x00,0x00,0x00}
 };
 
-static void fb_init(multiboot_info_t* mbd) {
-    // Ép kiểu 64-bit về 32-bit để tránh lỗi con trỏ
+// ==========================================
+// CÁC HÀM VẼ CƠ BẢN
+// ==========================================
+static uint32_t* fb_ptr = 0;
+static uint32_t fb_width = 0, fb_height = 0, fb_pitch = 0;
+
+void fb_init(multiboot_info_t* mbd) {
     fb_ptr = (uint32_t*)(uintptr_t)mbd->framebuffer_addr;
     fb_width = mbd->framebuffer_width;
     fb_height = mbd->framebuffer_height;
     fb_pitch = mbd->framebuffer_pitch / 4;
 }
 
-static void fb_put_pixel(uint32_t x, uint32_t y, uint32_t color) {
+void fb_put_pixel(uint32_t x, uint32_t y, uint32_t color) {
     if (x >= fb_width || y >= fb_height) return;
     fb_ptr[y * fb_pitch + x] = color;
 }
 
-static void fb_draw_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color) {
+void fb_draw_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color) {
     for (uint32_t i = 0; i < h; i++)
         for (uint32_t j = 0; j < w; j++)
             fb_put_pixel(x + j, y + i, color);
 }
 
-static void fb_draw_border(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color) {
-    fb_draw_rect(x, y, w, 2, color); fb_draw_rect(x, y + h - 2, w, 2, color);
-    fb_draw_rect(x, y, 2, h, color); fb_draw_rect(x + w - 2, y, 2, h, color);
+void fb_draw_border(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color) {
+    fb_draw_rect(x, y, w, 2, color); 
+    fb_draw_rect(x, y + h - 2, w, 2, color);
+    fb_draw_rect(x, y, 2, h, color); 
+    fb_draw_rect(x + w - 2, y, 2, h, color);
 }
 
-static void fb_draw_char(uint32_t x, uint32_t y, char c, uint32_t color) {
+void fb_draw_char(uint32_t x, uint32_t y, char c, uint32_t color) {
     if ((uint8_t)c > 127) return;
     const uint8_t* glyph = font8x8_basic[(uint8_t)c];
     for (int i = 0; i < 8; i++)
         for (int j = 0; j < 8; j++)
-            if (glyph[i] & (0x80 >> j)) fb_put_pixel(x + j, y + i, color);
+            if (glyph[i] & (1 << j)) fb_put_pixel(x + j, y + i, color);
 }
 
-static void fb_draw_string(uint32_t x, uint32_t y, const char* str, uint32_t color) {
-    while (*str) { fb_draw_char(x, y, *str, color); x += 8; str++; }
+void fb_draw_string(uint32_t x, uint32_t y, const char* str, uint32_t color) {
+    while (*str) { 
+        fb_draw_char(x, y, *str, color); 
+        x += 8; 
+        str++; 
+    }
 }
 
+// ==========================================
+// HÀM KHỞI TẠO GIAO DIỆN CHÍNH (Có kèm log)
+// ==========================================
 void gui_init(multiboot_info_t* mbd) {
-    if (!(mbd->flags & (1u << 12)) || mbd->framebuffer_addr == 0 || mbd->framebuffer_bpp != 32) {
-        /* Không có framebuffer 32-bit: báo lỗi trên màn hình chữ VGA để khỏi treo màn đen */
-        volatile uint16_t* vga = (volatile uint16_t*)0xB8000;
-        const char* m = "HaDeS/IOS: khong co framebuffer 32-bit (GRUB khong dat duoc 1024x768x32)";
-        for (int i = 0; m[i]; i++) vga[i] = 0x4F00 | (uint8_t)m[i];
+    serial_print("Da vao duoc gui_init!\n");
+    
+    // Kiểm tra xem GRUB có cấp Framebuffer không
+    if (!(mbd->flags & (1 << 12))) {
+        serial_print("LOI: GRUB khong cung cap Framebuffer!\n");
         return;
     }
-    fb_init(mbd);
 
-    // Nền Gradient xanh đen (Giống Windows 11)
+    serial_print("Da lay duoc Framebuffer. Bat dau ve...\n");
+    fb_init(mbd);
+    
+    // Vẽ nền Gradient xanh đen
     for (uint32_t y = 0; y < fb_height; y++) {
         fb_draw_rect(0, y, fb_width, 1, 0x0A0E27 + (y * 0x10 / fb_height));
     }
 
-    // Taskbar màu đen
+    // Vẽ thanh Taskbar màu đen
     uint32_t tb_y = fb_height - 48;
     fb_draw_rect(0, tb_y, fb_width, 48, 0x1A1A1A);
-
-    // Nút Start (Màu xanh dương)
+    
+    // Vẽ nút Start màu xanh dương
     uint32_t start_x = fb_width / 2 - 20;
     fb_draw_rect(start_x, tb_y + 4, 40, 40, 0x0078D4);
-
-    // Cửa sổ (Màu xám)
+    
+    // Vẽ cửa sổ Terminal
     uint32_t win_x = fb_width / 2 - 300, win_y = 150;
     fb_draw_rect(win_x, win_y, 600, 400, 0x2D2D2D);
     fb_draw_border(win_x, win_y, 600, 400, 0x555555);
-    fb_draw_rect(win_x, win_y, 600, 32, 0x1F1F1F); // Titlebar
-
-    // Nút Close (Màu đỏ)
+    fb_draw_rect(win_x, win_y, 600, 32, 0x1F1F1F);
+    
+    // Vẽ nút Close màu đỏ
     fb_draw_rect(win_x + 560, win_y + 8, 32, 16, 0xC42B1C);
 
-    // In chữ
+    // In chữ lên màn hình
     fb_draw_string(win_x + 10, win_y + 8, "HaDeS IOS - Terminal", 0xFFFFFF);
     fb_draw_string(win_x + 20, win_y + 60, "He dieu hanh chay doc lap 100%!", 0xFFFFFF);
     fb_draw_string(win_x + 20, win_y + 90, "Kernel C - Framebuffer - VESA", 0xAAAAAA);
+
+    serial_print("Da ve xong giao dien!\n");
 }
