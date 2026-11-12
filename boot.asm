@@ -16,10 +16,10 @@ global _start
 extern kernel_main
 _start:
     mov esp, stack_top
-    ; Đẩy tham số vào stack đúng chuẩn C (từ phải sang trái)
-    push eax     ; Tham số 2 (Magic)
-    push ebx     ; Tham số 1 (Multiboot ptr)
+    push eax                 ; Tham số thứ 2 (Magic)
+    push ebx                 ; Tham số thứ 1 (Địa chỉ Multiboot Info)
     call kernel_main
+
 .hang:
     cli
     hlt
