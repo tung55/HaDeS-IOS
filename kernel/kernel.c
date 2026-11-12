@@ -3,14 +3,18 @@
 #include "gui.h"
 
 void kernel_main(multiboot_info_t* mbd, uint32_t magic) {
+    serial_print("Kernel bat dau chay!\n");
+    
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
+        serial_print("LOI: Magic number sai!\n");
         while(1) { __asm__ volatile("hlt"); } 
     }
 
-    pmm_init(mbd);  // Khởi tạo bộ nhớ
-    gui_init(mbd);  // Vẽ giao diện
+    pmm_init(mbd);  
+    gui_init(mbd);  
 
-    // Sửa lệnh "hlt" thành "pause" để VMware không hiểu nhầm là tắt máy
+    serial_print("Da ve xong giao dien!\n");
+
     while (1) {
         __asm__ volatile("pause"); 
     }
