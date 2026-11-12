@@ -5,15 +5,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Cài đặt môi trường
       run: |
         sudo apt-get update
-        sudo apt-get install -y nasm grub-pc-bin grub-common xorriso gcc-multilib build-essential
-        
+        sudo apt-get install -y nasm grub-pc-bin grub-common xorriso gcc-multilib build-essential mtools
+
     - name: Biên dịch (Build)
       run: make
-      
+
     - name: Xuất file ISO
       uses: actions/upload-artifact@v4
       with:
