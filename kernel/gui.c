@@ -1,14 +1,7 @@
 #include "gui.h"
 
-// ==========================================
-// HÀM DEBUG: In chữ ra cổng COM1 để đọc log
-// ==========================================
-void serial_print(const char* str) {
-    while (*str) {
-        __asm__ volatile("outb %0, %1" : : "a"((uint8_t)*str), "Nd"((uint16_t)0x3F8));
-        str++;
-    }
-}
+// Khai báo hàm in chữ từ kernel.c để sử dụng
+extern void vga_print(const char* str);
 
 // ==========================================
 // BỘ FONT CHỮ 8x8
@@ -98,18 +91,18 @@ void fb_draw_string(uint32_t x, uint32_t y, const char* str, uint32_t color) {
 }
 
 // ==========================================
-// HÀM KHỞI TẠO GIAO DIỆN CHÍNH (Có kèm log)
+// HÀM KHỞI TẠO GIAO DIỆN CHÍNH (Có kèm log VGA)
 // ==========================================
 void gui_init(multiboot_info_t* mbd) {
-    serial_print("Da vao duoc gui_init!\n");
+    vga_print("4. Da vao duoc gui_init!\n");
     
     // Kiểm tra xem GRUB có cấp Framebuffer không
     if (!(mbd->flags & (1 << 12))) {
-        serial_print("LOI: GRUB khong cung cap Framebuffer!\n");
+        vga_print("LOI: GRUB khong cung cap Framebuffer!\n");
         return;
     }
 
-    serial_print("Da lay duoc Framebuffer. Bat dau ve...\n");
+    vga_print("5. Da lay duoc Framebuffer. Bat dau ve...\n");
     fb_init(mbd);
     
     // Vẽ nền Gradient xanh đen
@@ -134,10 +127,10 @@ void gui_init(multiboot_info_t* mbd) {
     // Vẽ nút Close màu đỏ
     fb_draw_rect(win_x + 560, win_y + 8, 32, 16, 0xC42B1C);
 
-    // In chữ lên màn hình
+    // In chữ lên màn hình đồ họa
     fb_draw_string(win_x + 10, win_y + 8, "HaDeS IOS - Terminal", 0xFFFFFF);
     fb_draw_string(win_x + 20, win_y + 60, "He dieu hanh chay doc lap 100%!", 0xFFFFFF);
     fb_draw_string(win_x + 20, win_y + 90, "Kernel C - Framebuffer - VESA", 0xAAAAAA);
 
-    serial_print("Da ve xong giao dien!\n");
+    vga_print("6. Da ve xong giao dien thanh cong!\n");
 }
